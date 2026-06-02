@@ -174,7 +174,7 @@ export default function App() {
   const rows = useMemo(() => {
     if (query.trim()) return [{ title: `"${query}" 검색 결과`, items: lanesData.search || [] }];
     const r = [];
-    if (allVideos.length) r.push({ title: "🔥 지금 뜨는 하이라이트", items: [...allVideos].sort((a, b) => b.views - a.views).slice(0, 12) });
+    if (allVideos.length) r.push({ title: "🔥 지금 뜨는 하이라이트", items: [...allVideos].sort((a, b) => b.views - a.views).slice(0, 30) });
     requestLanes.forEach((id) => {
       const info = LANE_INFO[id];
       const items = lanesData[id] || [];
