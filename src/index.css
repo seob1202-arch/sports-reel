@@ -62,7 +62,8 @@ body {
   font-size:13px;padding:7px 13px;border-radius:20px;cursor:pointer;transition:.15s;white-space:nowrap}
 .chip:hover{color:var(--tx);border-color:#3a3a48}
 .chip.on{background:#fff;color:#111;border-color:#fff}
-.fbar-right{display:flex;align-items:center;gap:14px}
+.fbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.seg.period button{padding:7px 11px}
 .seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;overflow:hidden}
 .seg button{background:transparent;border:none;color:var(--mut);font-family:'Barlow';font-weight:600;font-size:13px;padding:7px 14px;cursor:pointer}
 .seg button.on{background:rgba(255,255,255,.10);color:#fff}
