@@ -4,7 +4,7 @@ import { getHighlights, QuotaError, AuthError } from "./_core.js";
 
 export default async function handler(req, res) {
   try {
-    const { lanes = "", q = "", sport = "", sort = "recent" } = req.query || {};
+    const { lanes = "", q = "", sport = "", sort = "recent", window = "today" } = req.query || {};
     const laneList = String(lanes).split(",").map((s) => s.trim()).filter(Boolean);
 
     const data = await getHighlights({
@@ -12,6 +12,7 @@ export default async function handler(req, res) {
       q: String(q),
       sport: String(sport),
       sort: sort === "views" ? "views" : "recent",
+      window: String(window),
     });
 
     // CDN 캐싱: 같은 요청은 10분간 캐시에서 응답 → 할당량 절약 + 빠른 응답
