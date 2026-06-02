@@ -11,6 +11,7 @@ export const handler = async (event) => {
       q: String(p.q || ""),
       sport: String(p.sport || ""),
       sort: p.sort === "views" ? "views" : "recent",
+      window: String(p.window || "today"),
     });
     return {
       statusCode: 200,
