@@ -14,7 +14,7 @@ const fmtDate = (d) => {
     : `${Math.floor(days / 30)}개월 전`;
 };
 
-/* ───────── Thumbnail (실제 유튜브 썸네일 + 깨지면 그라데이션 대체) ───────── */
+/* ───────── Thumbnail ───────── */
 function Thumb({ v, big }) {
   const accent = SPORTS[v.sport]?.accent || "#888";
   const league = LANE_INFO[v.league];
@@ -24,9 +24,7 @@ function Thumb({ v, big }) {
       {v.thumb && !err ? (
         <img className="thumb-img" src={v.thumb} alt="" loading="lazy" onError={() => setErr(true)} />
       ) : (
-        <div className="thumb-fallback">
-          <span className="thumb-icon">{SPORTS[v.sport]?.icon}</span>
-        </div>
+        <div className="thumb-fallback"><span className="thumb-icon">{SPORTS[v.sport]?.icon}</span></div>
       )}
       <div className="thumb-shade" />
       <div className="thumb-top">
@@ -76,7 +74,6 @@ function Row({ title, items, onOpen }) {
   );
 }
 
-/* ───────── Skeleton row (로딩 중) ───────── */
 function SkeletonRow() {
   return (
     <section className="row">
@@ -92,12 +89,18 @@ function SkeletonRow() {
 
 /* ───────── Player modal ───────── */
 function Player({ v, onClose }) {
+  // ❗ 모달이 실제로 열렸을 때(v 존재)에만 스크롤을 잠급니다.
   useEffect(() => {
+    if (!v) return;                       // 닫혀 있으면 아무것도 하지 않음 → 페이지 스크롤 정상
     const k = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", k);
     document.body.style.overflow = "hidden";
-    return () => { window.removeEventListener("keydown", k); document.body.style.overflow = ""; };
-  }, [onClose]);
+    return () => {
+      window.removeEventListener("keydown", k);
+      document.body.style.overflow = "";
+    };
+  }, [v, onClose]);
+
   if (!v) return null;
   const league = LANE_INFO[v.league];
   return (
@@ -113,19 +116,13 @@ function Player({ v, onClose }) {
         </div>
         <div className="modal-body">
           <div className="modal-badges">
-            <span className="badge" style={{ "--ac": SPORTS[v.sport]?.accent }}>
-              {SPORTS[v.sport]?.icon} {SPORTS[v.sport]?.label}
-            </span>
+            <span className="badge" style={{ "--ac": SPORTS[v.sport]?.accent }}>{SPORTS[v.sport]?.icon} {SPORTS[v.sport]?.label}</span>
             {league && <span className="badge ghost">{league.flag} {league.label}</span>}
             {v.dur && <span className="badge ghost">{v.dur}</span>}
           </div>
           <h3 className="modal-title">{v.title}</h3>
-          <div className="modal-meta">
-            {v.channel && <>{v.channel} · </>}{fmtViews(v.views)} 조회 · {fmtDate(v.date)}
-          </div>
-          <a className="modal-yt" href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noreferrer">
-            YouTube에서 열기 ↗
-          </a>
+          <div className="modal-meta">{v.channel && <>{v.channel} · </>}{fmtViews(v.views)} 조회 · {fmtDate(v.date)}</div>
+          <a className="modal-yt" href={`https://www.youtube.com/watch?v=${v.videoId}`} target="_blank" rel="noreferrer">YouTube에서 열기 ↗</a>
         </div>
       </div>
     </div>
@@ -138,58 +135,46 @@ export default function App() {
   const [league, setLeague] = useState("all");
   const [sort, setSort] = useState("recent");
   const [queryInput, setQueryInput] = useState("");
-  const [query, setQuery] = useState("");     // 실제 적용된 검색어
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(null);
-
-  const [lanesData, setLanesData] = useState({}); // { laneId: [videos] }
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false); // 모바일 검색 토글
 
   const availLeagues = sport === "all" ? [] : LEAGUES[sport];
 
-  // 현재 필터로 요청할 레인 목록 결정
   const requestLanes = useMemo(() => {
-    if (query.trim()) return [];                       // 검색 모드
+    if (query.trim()) return [];
     if (sport === "all") return ALL_LANES;
     if (league !== "all") return [league];
     return LEAGUES[sport].map((l) => l.id);
   }, [sport, league, query]);
 
-  // 데이터 fetch
+  const [lanesData, setLanesData] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const params = new URLSearchParams({ sort });
       if (query.trim()) { params.set("q", query.trim()); if (sport !== "all") params.set("sport", sport); }
       else params.set("lanes", requestLanes.join(","));
-
       const res = await fetch(`/api/highlights?${params.toString()}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `요청 실패 (${res.status})`);
       setLanesData(json.lanes || {});
-    } catch (e) {
-      setError(e.message);
-      setLanesData({});
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { setError(e.message); setLanesData({}); }
+    finally { setLoading(false); }
   }, [sort, query, sport, requestLanes]);
 
   useEffect(() => { load(); }, [load]);
 
-  // 화면 행 구성
   const allVideos = useMemo(() => Object.values(lanesData).flat(), [lanesData]);
-  const hero = useMemo(
-    () => [...allVideos].sort((a, b) => b.views - a.views)[0],
-    [allVideos]
-  );
+  const hero = useMemo(() => [...allVideos].sort((a, b) => b.views - a.views)[0], [allVideos]);
 
   const rows = useMemo(() => {
     if (query.trim()) return [{ title: `"${query}" 검색 결과`, items: lanesData.search || [] }];
     const r = [];
-    if (allVideos.length) {
-      r.push({ title: "🔥 지금 뜨는 하이라이트", items: [...allVideos].sort((a, b) => b.views - a.views).slice(0, 12) });
-    }
+    if (allVideos.length) r.push({ title: "🔥 지금 뜨는 하이라이트", items: [...allVideos].sort((a, b) => b.views - a.views).slice(0, 12) });
     requestLanes.forEach((id) => {
       const info = LANE_INFO[id];
       const items = lanesData[id] || [];
@@ -198,9 +183,10 @@ export default function App() {
     return r;
   }, [lanesData, allVideos, requestLanes, query]);
 
-  const selectSport = (s) => { setSport(s); setLeague("all"); };
+  const selectSport = (s) => { setSport(s); setLeague("all"); setQuery(""); setQueryInput(""); window.scrollTo({ top: 0 }); };
   const submitSearch = () => setQuery(queryInput);
   const clearSearch = () => { setQueryInput(""); setQuery(""); };
+  const closePlayer = useCallback(() => setOpen(null), []);
 
   return (
     <div className="app">
@@ -215,14 +201,12 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="search">
+        <button className="search-btn" onClick={() => setSearchOpen((o) => !o)} aria-label="검색">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path fill="none" stroke="currentColor" strokeWidth="2" d="M21 21l-5-5m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </button>
+        <div className={searchOpen ? "search open" : "search"}>
           <svg viewBox="0 0 24 24" width="16" height="16"><path fill="none" stroke="#9a9aab" strokeWidth="2" d="M21 21l-5-5m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <input
-            value={queryInput}
-            onChange={(e) => setQueryInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitSearch()}
-            placeholder="팀 · 선수 · 키워드 검색 후 Enter"
-          />
+          <input value={queryInput} onChange={(e) => setQueryInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submitSearch()} placeholder="팀 · 선수 · 키워드 검색 후 Enter" />
           {queryInput && <button className="search-x" onClick={clearSearch}>✕</button>}
         </div>
       </header>
@@ -236,9 +220,7 @@ export default function App() {
             <span className="hero-kicker">{SPORTS[hero.sport]?.icon} {SPORTS[hero.sport]?.label} · 오늘의 추천</span>
             <h1 className="hero-title">{hero.title}</h1>
             <div className="hero-meta">{hero.channel} · {fmtViews(hero.views)} 조회 · {fmtDate(hero.date)}</div>
-            <div className="hero-btns">
-              <button className="hero-play">▶ 재생</button>
-            </div>
+            <div className="hero-btns"><button className="hero-play">▶ 재생</button></div>
           </div>
         </div>
       )}
@@ -250,9 +232,7 @@ export default function App() {
             <div className="chips">
               <button className={league === "all" ? "chip on" : "chip"} onClick={() => setLeague("all")}>전체 리그</button>
               {availLeagues.map((l) => (
-                <button key={l.id} className={league === l.id ? "chip on" : "chip"} onClick={() => setLeague(l.id)}>
-                  {l.flag} {l.label}
-                </button>
+                <button key={l.id} className={league === l.id ? "chip on" : "chip"} onClick={() => setLeague(l.id)}>{l.flag} {l.label}</button>
               ))}
             </div>
           )}
@@ -271,21 +251,29 @@ export default function App() {
           <div className="empty error">
             <b>데이터를 불러오지 못했어요.</b>
             <span>{error}</span>
-            <span className="hint">로컬에서 테스트할 땐 <code>vercel dev</code> 또는 <code>netlify dev</code>로 실행해야 /api가 동작합니다. 배포 환경에서는 <code>YOUTUBE_API_KEY</code> 환경변수 설정을 확인하세요.</span>
+            <span className="hint">Vercel의 <code>YOUTUBE_API_KEY</code> 환경변수가 등록됐는지 확인하세요.</span>
             <button className="retry" onClick={load}>다시 시도</button>
           </div>
-        ) : loading ? (
-          <><SkeletonRow /><SkeletonRow /></>
-        ) : rows.length === 0 ? (
-          <div className="empty">표시할 하이라이트가 없어요. 다른 필터나 검색어를 시도해 보세요.</div>
-        ) : (
-          rows.map((r, i) => <Row key={i} title={r.title} items={r.items} onOpen={setOpen} />)
-        )}
+        ) : loading ? (<><SkeletonRow /><SkeletonRow /></>)
+        : rows.length === 0 ? (<div className="empty">표시할 하이라이트가 없어요. 다른 필터나 검색어를 시도해 보세요.</div>)
+        : rows.map((r, i) => <Row key={i} title={r.title} items={r.items} onOpen={setOpen} />)}
       </main>
+
+      {/* MOBILE BOTTOM TAB BAR */}
+      <nav className="tabbar">
+        <button className={sport === "all" ? "tab on" : "tab"} onClick={() => selectSport("all")}>
+          <span className="tab-ic">🏠</span><span className="tab-lb">전체</span>
+        </button>
+        {Object.entries(SPORTS).map(([k, m]) => (
+          <button key={k} className={sport === k ? "tab on" : "tab"} onClick={() => selectSport(k)} style={{ "--ac": m.accent }}>
+            <span className="tab-ic">{m.icon}</span><span className="tab-lb">{m.label}</span>
+          </button>
+        ))}
+      </nav>
 
       <footer className="foot">SPORTS<b>REEL</b> · YouTube Data API v3 · 키는 서버에서만 사용됩니다</footer>
 
-      <Player v={open} onClose={() => setOpen(null)} />
+      <Player v={open} onClose={closePlayer} />
     </div>
   );
 }
