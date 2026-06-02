@@ -1,0 +1,10 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+# /api/highlights 요청을 Netlify 함수로 연결 (프론트엔드 코드는 그대로)
+[[redirects]]
+  from = "/api/highlights"
+  to = "/.netlify/functions/highlights"
+  status = 200
