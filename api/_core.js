@@ -77,9 +77,11 @@ async function ytFetch(url) {
 }
 
 // ── 검색어 하나(레인 또는 자유검색)에 대해 영상 목록 가져오기 ──
-async function runQuery({ key, sport, league, q, order }) {
+async function runQuery({ key, sport, league, q, order, windowDays }) {
   const ytOrder = order === "views" ? "viewCount" : "date";
-  const publishedAfter = new Date(Date.now() - 60 * DAY).toISOString(); // 최근 60일
+  // 기간 필터: windowDays일 이내에 "업로드된" 영상만. 1 = 오늘(최근 24시간).
+  const days = Number(windowDays) > 0 ? Number(windowDays) : 1;
+  const publishedAfter = new Date(Date.now() - days * DAY).toISOString();
 
   // 1) search.list (100 유닛). maxResults는 비용과 무관 → 최대치인 50개를 받음.
   const su = new URL(`${YT}/search`);
@@ -134,17 +136,22 @@ async function runQuery({ key, sport, league, q, order }) {
 // ── 외부에서 호출하는 메인 함수 ──
 // 입력: { lanes:["epl",...] } 또는 { q:"손흥민", sport:"soccer" }, sort
 // 출력: { lanes: { epl:[...], ... } }  (자유검색이면 { search:[...] })
-export async function getHighlights({ lanes = [], q = "", sport = "", sort = "recent" }) {
+// 기간(window) 옵션 → 일수 매핑. today = 오늘(최근 24시간).
+const WINDOW_DAYS = { today: 1, "3d": 3, week: 7, month: 30 };
+
+export async function getHighlights({ lanes = [], q = "", sport = "", sort = "recent", window = "today" }) {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) throw new AuthError("서버에 YOUTUBE_API_KEY 환경변수가 설정되지 않았습니다.");
+
+  const windowDays = WINDOW_DAYS[window] || 1;
 
   // 자유 검색 모드
   if (q && q.trim()) {
     const term = sport ? `${q} ${SPORTS[sport] || ""} highlights` : `${q} highlights`;
-    const cacheKey = `q:${term}:${sort}`;
+    const cacheKey = `q:${term}:${sort}:${window}`;
     let data = getCache(cacheKey);
     if (!data) {
-      data = await runQuery({ key, sport, league: "", q: term, order: sort });
+      data = await runQuery({ key, sport, league: "", q: term, order: sort, windowDays });
       setCache(cacheKey, data);
     }
     return { lanes: { search: data } };
@@ -156,10 +163,10 @@ export async function getHighlights({ lanes = [], q = "", sport = "", sort = "re
   await Promise.all(
     valid.map(async (laneId) => {
       const lane = LANES[laneId];
-      const cacheKey = `lane:${laneId}:${sort}`;
+      const cacheKey = `lane:${laneId}:${sort}:${window}`;
       let data = getCache(cacheKey);
       if (!data) {
-        data = await runQuery({ key, sport: lane.sport, league: laneId, q: lane.q, order: sort });
+        data = await runQuery({ key, sport: lane.sport, league: laneId, q: lane.q, order: sort, windowDays });
         setCache(cacheKey, data);
       }
       out[laneId] = data;
