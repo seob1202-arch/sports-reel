@@ -134,6 +134,7 @@ export default function App() {
   const [sport, setSport] = useState("all");
   const [league, setLeague] = useState("all");
   const [sort, setSort] = useState("recent");
+  const [period, setPeriod] = useState("today"); // 기간 필터: today/3d/week/month
   const [queryInput, setQueryInput] = useState("");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(null);
@@ -155,7 +156,7 @@ export default function App() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const params = new URLSearchParams({ sort });
+      const params = new URLSearchParams({ sort, window: period });
       if (query.trim()) { params.set("q", query.trim()); if (sport !== "all") params.set("sport", sport); }
       else params.set("lanes", requestLanes.join(","));
       const res = await fetch(`/api/highlights?${params.toString()}`);
@@ -164,24 +165,26 @@ export default function App() {
       setLanesData(json.lanes || {});
     } catch (e) { setError(e.message); setLanesData({}); }
     finally { setLoading(false); }
-  }, [sort, query, sport, requestLanes]);
+  }, [sort, period, query, sport, requestLanes]);
 
   useEffect(() => { load(); }, [load]);
 
   const allVideos = useMemo(() => Object.values(lanesData).flat(), [lanesData]);
   const hero = useMemo(() => [...allVideos].sort((a, b) => b.views - a.views)[0], [allVideos]);
 
+  const periodLabel = { today: "오늘", "3d": "최근 3일", week: "이번 주", month: "이번 달" }[period] || "오늘";
+
   const rows = useMemo(() => {
     if (query.trim()) return [{ title: `"${query}" 검색 결과`, items: lanesData.search || [] }];
     const r = [];
-    if (allVideos.length) r.push({ title: "🔥 지금 뜨는 하이라이트", items: [...allVideos].sort((a, b) => b.views - a.views).slice(0, 30) });
+    if (allVideos.length) r.push({ title: `🔥 ${periodLabel} 뜨는 하이라이트`, items: [...allVideos].sort((a, b) => b.views - a.views).slice(0, 30) });
     requestLanes.forEach((id) => {
       const info = LANE_INFO[id];
       const items = lanesData[id] || [];
       if (items.length) r.push({ title: `${info.flag} ${info.label} · ${info.country}`, items });
     });
     return r;
-  }, [lanesData, allVideos, requestLanes, query]);
+  }, [lanesData, allVideos, requestLanes, query, periodLabel]);
 
   const selectSport = (s) => { setSport(s); setLeague("all"); setQuery(""); setQueryInput(""); window.scrollTo({ top: 0 }); };
   const submitSearch = () => setQuery(queryInput);
@@ -238,6 +241,12 @@ export default function App() {
           )}
         </div>
         <div className="fbar-right">
+          <div className="seg period">
+            <button className={period === "today" ? "on" : ""} onClick={() => setPeriod("today")}>오늘</button>
+            <button className={period === "3d" ? "on" : ""} onClick={() => setPeriod("3d")}>3일</button>
+            <button className={period === "week" ? "on" : ""} onClick={() => setPeriod("week")}>1주</button>
+            <button className={period === "month" ? "on" : ""} onClick={() => setPeriod("month")}>1달</button>
+          </div>
           <div className="seg">
             <button className={sort === "recent" ? "on" : ""} onClick={() => setSort("recent")}>최신순</button>
             <button className={sort === "views" ? "on" : ""} onClick={() => setSort("views")}>조회순</button>
@@ -255,7 +264,7 @@ export default function App() {
             <button className="retry" onClick={load}>다시 시도</button>
           </div>
         ) : loading ? (<><SkeletonRow /><SkeletonRow /></>)
-        : rows.length === 0 ? (<div className="empty">표시할 하이라이트가 없어요. 다른 필터나 검색어를 시도해 보세요.</div>)
+        : rows.length === 0 ? (<div className="empty">선택한 기간에 올라온 하이라이트가 없어요.<br/>위의 <b>기간</b>을 '3일'이나 '1주'로 넓혀 보세요.</div>)
         : rows.map((r, i) => <Row key={i} title={r.title} items={r.items} onOpen={setOpen} />)}
       </main>
 
