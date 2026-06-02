@@ -81,12 +81,12 @@ async function runQuery({ key, sport, league, q, order }) {
   const ytOrder = order === "views" ? "viewCount" : "date";
   const publishedAfter = new Date(Date.now() - 60 * DAY).toISOString(); // 최근 60일
 
-  // 1) search.list (100 유닛). maxResults는 비용과 무관하므로 넉넉히 25개.
+  // 1) search.list (100 유닛). maxResults는 비용과 무관 → 최대치인 50개를 받음.
   const su = new URL(`${YT}/search`);
   su.searchParams.set("part", "snippet");
   su.searchParams.set("q", q);
   su.searchParams.set("type", "video");
-  su.searchParams.set("maxResults", "25");
+  su.searchParams.set("maxResults", "50");
   su.searchParams.set("order", ytOrder);
   su.searchParams.set("videoEmbeddable", "true");
   su.searchParams.set("publishedAfter", publishedAfter);
